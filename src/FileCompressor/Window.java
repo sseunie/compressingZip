@@ -3,10 +3,18 @@ package FileCompressor;
 import java.awt.Component;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
-import java.lang.Exception;
+import javax.swing.SwingWorker;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -15,8 +23,8 @@ import java.lang.Exception;
  */
 
 /**
- *
- * @author stefany
+ * @author Stefany Martín Socas
+ * @author Santiago Martínez Willi
  */
 public class Window extends javax.swing.JFrame {
     
@@ -32,9 +40,7 @@ public class Window extends javax.swing.JFrame {
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         
         cancelButton.setVisible(false);
-        progressBar.setVisible(false);
         progressBar.setMinimum(0);
-        progressBar.setMaximum(100);
         progressBar.setValue(0);
         
         compressButton.setEnabled(false);
@@ -68,6 +74,7 @@ public class Window extends javax.swing.JFrame {
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Compresión de carpeta");
+        setBackground(new java.awt.Color(255, 255, 255));
 
         selectFolderButton.setText("Seleccionar carpeta");
         selectFolderButton.addActionListener(new java.awt.event.ActionListener() {
@@ -145,12 +152,13 @@ public class Window extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void compressButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_compressButtonActionPerformed
-        progressBar.setVisible(true);
         progressBar.setValue(0);
         cancelButton.setVisible(true);
         selectFolderButton.setEnabled(false);
+        compressButton.setEnabled(false);
         
-        //zip()
+        ZipCompressor zipWorker = new ZipCompressor(originPathTextField.getText(), destinationPathTextField.getText());
+        zipWorker.execute();
         
     }//GEN-LAST:event_compressButtonActionPerformed
 
@@ -206,7 +214,7 @@ public class Window extends javax.swing.JFrame {
     private void selectOriginFolder() throws Exception {
         fileChooser.setDialogTitle("Seleccionar carpeta a comprimir");
         int res = fileChooser.showOpenDialog(this);
-        if(res == JFileChooser.APPROVE_OPTION && fileChooser.getSelectedFile().exists()) {
+        if(res == JFileChooser.APPROVE_OPTION && fileChooser.getSelectedFile().isDirectory()) {
             originPathTextField.setText(fileChooser.getSelectedFile().getAbsolutePath());
         } else {
             throw new Exception();
@@ -223,10 +231,6 @@ public class Window extends javax.swing.JFrame {
             throw new Exception();
         }
     } 
-    
-    private void zip(File directory) {
-        System.out.println(directory.getAbsolutePath());
-    }
     
     private void confirmExit() {
         this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -253,4 +257,73 @@ public class Window extends javax.swing.JFrame {
     private javax.swing.JButton selectFolderButton;
     private javax.swing.JLabel titleLabel;
     // End of variables declaration//GEN-END:variables
+    
+    class ZipCompressor extends SwingWorker<Void, Integer> {
+        private final static int BUFFER_SIZE = 8192; // JAVA's deffault buffer size for a BufferedInputStream instance
+        
+        private final String originPath;
+        private final String destinationPath;
+        
+        public ZipCompressor(String originPath, String destinationPath) {
+            this.originPath = originPath;
+            this.destinationPath = destinationPath + "\\folder.zip";
+        }
+        
+        @Override
+        protected Void doInBackground() throws Exception {
+            List<String> filenameList = new ArrayList<>();
+            getFiles(filenameList, originPath);
+            
+            progressBar.setMaximum(filenameList.size());
+            
+            FileOutputStream outputStream = new FileOutputStream(destinationPath);
+            
+            ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(outputStream));
+            byte[] data = new byte[BUFFER_SIZE];
+            
+            for(String filename : filenameList) {
+                File file = new File(filename);
+                FileInputStream inputStream = new FileInputStream(file);
+                BufferedInputStream bufferedInputStream = new BufferedInputStream(inputStream, BUFFER_SIZE);
+                
+                ZipEntry zipEntry = new ZipEntry(filename.substring(originPath.length()+1));
+                zip.putNextEntry(zipEntry);
+                
+                int count;
+                while((count = bufferedInputStream.read(data, 0, BUFFER_SIZE)) != -1) {
+                    zip.write(data, 0, count);
+                }
+                bufferedInputStream.close();
+            }
+            zip.close();
+            
+            return null;
+        }
+        
+        @Override
+        protected void done() {
+            cancelButton.setVisible(false);
+            selectFolderButton.setEnabled(true);
+            compressButton.setEnabled(true);
+        }
+        
+        @Override
+        protected void process(List<Integer> chunks) {
+            
+        }
+        
+        private void getFiles(List<String> fileList, String path) {
+            File file = new File(path);
+            if(file.isDirectory()) {
+                for(String name : file.list()) {
+                    if(name.equals(".") || name.equals("..")) {
+                        continue;
+                    }
+                    getFiles(fileList, file + File.separator + name);
+                }
+            } else {
+                fileList.add(file.getAbsolutePath());
+            }
+        }
+    }
 }
