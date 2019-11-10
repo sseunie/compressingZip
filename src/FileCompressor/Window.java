@@ -1,5 +1,6 @@
 package FileCompressor;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -15,6 +16,7 @@ import java.util.zip.ZipOutputStream;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.SwingWorker;
+import javax.swing.UIManager;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -42,6 +44,7 @@ public class Window extends javax.swing.JFrame {
         cancelButton.setVisible(false);
         progressBar.setMinimum(0);
         progressBar.setValue(0);
+        UIManager.put("nimbusOrange", new Color(35, 150, 210)); //changes de Nimbus color for the progress bar
         
         compressButton.setEnabled(false);
         
@@ -107,9 +110,6 @@ public class Window extends javax.swing.JFrame {
                 .addGap(0, 110, Short.MAX_VALUE)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
-                        .addGap(130, 130, 130)
-                        .addComponent(cancelButton))
-                    .addGroup(layout.createSequentialGroup()
                         .addComponent(selectFolderButton)
                         .addGap(89, 89, 89)
                         .addComponent(compressButton))
@@ -124,8 +124,13 @@ public class Window extends javax.swing.JFrame {
                     .addComponent(destinationPathTextField))
                 .addGap(77, 77, 77))
             .addGroup(layout.createSequentialGroup()
-                .addGap(119, 119, 119)
-                .addComponent(progressBar, javax.swing.GroupLayout.PREFERRED_SIZE, 284, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(232, 232, 232)
+                        .addComponent(cancelButton))
+                    .addGroup(layout.createSequentialGroup()
+                        .addGap(121, 121, 121)
+                        .addComponent(progressBar, javax.swing.GroupLayout.PREFERRED_SIZE, 284, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
@@ -141,11 +146,11 @@ public class Window extends javax.swing.JFrame {
                 .addComponent(originPathTextField, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(destinationPathTextField, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(progressBar, javax.swing.GroupLayout.PREFERRED_SIZE, 27, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(18, 18, 18)
+                .addComponent(progressBar, javax.swing.GroupLayout.PREFERRED_SIZE, 20, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(cancelButton)
-                .addContainerGap(19, Short.MAX_VALUE))
+                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
 
         pack();
@@ -281,6 +286,7 @@ public class Window extends javax.swing.JFrame {
             ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(outputStream));
             byte[] data = new byte[BUFFER_SIZE];
             
+            int k = 0; // number of files zipped, used for the progress bar
             for(String filename : filenameList) {
                 File file = new File(filename);
                 FileInputStream inputStream = new FileInputStream(file);
@@ -294,9 +300,10 @@ public class Window extends javax.swing.JFrame {
                     zip.write(data, 0, count);
                 }
                 bufferedInputStream.close();
+                
+                publish(++k);
             }
             zip.close();
-            
             return null;
         }
         
@@ -309,7 +316,7 @@ public class Window extends javax.swing.JFrame {
         
         @Override
         protected void process(List<Integer> chunks) {
-            
+            progressBar.setValue(chunks.get(0));
         }
         
         private void getFiles(List<String> fileList, String path) {
