@@ -20,6 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.swing.JFileChooser;
@@ -310,15 +311,10 @@ public class Window extends javax.swing.JFrame {
         
         @Override
         protected Void doInBackground() throws Exception {
-            List<String> filenameList = new ArrayList<>();
-            getFiles(filenameList, originPath);
-            
-            
             progressBar.setMaximum(PBAR_MAX);
-            System.out.println(filenameList.size() + " archivos a comprimir");
             
+            List<String> filenameList = getFiles(originPath);
             FileOutputStream outputStream = new FileOutputStream(destinationPath);
-            
             ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(outputStream));
             byte[] data = new byte[BUFFER_SIZE];
             
@@ -368,25 +364,17 @@ public class Window extends javax.swing.JFrame {
         
         @Override
         protected void process(List<Integer> chunks) {
-            if(!isCancelled()) {
-                System.out.println(chunks.get(0));
-                progressBar.setValue(chunks.get(0));
-            }
+            if(!isCancelled()) progressBar.setValue(chunks.get(0));
         }
         
         //gets all regular file paths from a file hierarchy
-        private void getFiles(List<String> fileList, String path) {
-            File file = new File(path);
-            if(file.isDirectory()) {
-                for(String name : file.list()) {
-                    if(name.equals(".") || name.equals("..")) {
-                        continue;
-                    }
-                    getFiles(fileList, file + File.separator + name);
-                }
-            } else {
-                fileList.add(file.getAbsolutePath());
-            }
+        private List<String> getFiles(String path) throws IOException {
+            Path folder = Paths.get(path);
+            return Files.walk(folder)               //Stream<Path>
+                    .map(p -> p.toFile())           //File class
+                    .filter(f -> f.isFile())        //regular files
+                    .map(f -> f.getAbsolutePath())
+                    .collect(Collectors.toList());
         }
         
         //returns the size in bytes of the directory passed
@@ -394,8 +382,8 @@ public class Window extends javax.swing.JFrame {
             Path folder = Paths.get(path);
             return Files.walk(folder)           //Stream<Path>
                     .map(p -> p.toFile())       //File class
-                    .filter(p -> p.isFile())    //regular files
-                    .mapToLong(p -> p.length())
+                    .filter(f -> f.isFile())    //regular files
+                    .mapToLong(f -> f.length())
                     .sum();
         }
     }
