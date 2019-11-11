@@ -2,6 +2,8 @@ package FileCompressor;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Toolkit;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.BufferedInputStream;
@@ -9,9 +11,15 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.swing.JFileChooser;
@@ -39,6 +47,9 @@ public class Window extends javax.swing.JFrame {
      */
     public Window() {
         initComponents();
+        
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        this.setLocation(screen.width/2-this.getSize().width/2, screen.height/2-this.getSize().height/2);
         
         fileChooser = new JFileChooser();
         fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -80,6 +91,7 @@ public class Window extends javax.swing.JFrame {
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Compresión de carpeta");
         setBackground(new java.awt.Color(255, 255, 255));
+        setResizable(false);
 
         selectFolderButton.setText("Seleccionar carpeta");
         selectFolderButton.addActionListener(new java.awt.event.ActionListener() {
@@ -169,8 +181,12 @@ public class Window extends javax.swing.JFrame {
         selectFolderButton.setEnabled(false);
         compressButton.setEnabled(false);
         
-        zipWorker = new ZipCompressor(originPathTextField.getText(), destinationPathTextField.getText());
-        zipWorker.execute();
+        try {
+            zipWorker = new ZipCompressor(originPathTextField.getText(), destinationPathTextField.getText());
+            zipWorker.execute();
+        } catch (IOException ex) {
+            showErrorDialog(this, ex.toString());
+        }
     }//GEN-LAST:event_compressButtonActionPerformed
 
     private void selectFolderButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectFolderButtonActionPerformed
@@ -273,15 +289,23 @@ public class Window extends javax.swing.JFrame {
     private javax.swing.JLabel titleLabel;
     // End of variables declaration//GEN-END:variables
     
+    /**
+     * Does in background the zip compression using the current and worker threads provided by SwingWorker.
+     * It also updates the JProgressBar in the process.
+     */
     class ZipCompressor extends SwingWorker<Void, Integer> {
         private final static int BUFFER_SIZE = 8192; // JAVA's deffault buffer size for a BufferedInputStream instance
+        private final static int PBAR_MAX = 1000;   // JProgressBar max value
         
         private final String originPath;
         private final String destinationPath;
+        private final long nBytes;
         
-        public ZipCompressor(String originPath, String destinationPath) {
+        
+        public ZipCompressor(String originPath, String destinationPath) throws IOException {
             this.originPath = originPath;
             this.destinationPath = destinationPath + "\\folder.zip";
+            nBytes = getDirSize(originPath);
         }
         
         @Override
@@ -289,7 +313,8 @@ public class Window extends javax.swing.JFrame {
             List<String> filenameList = new ArrayList<>();
             getFiles(filenameList, originPath);
             
-            progressBar.setMaximum(filenameList.size());
+            
+            progressBar.setMaximum(PBAR_MAX);
             System.out.println(filenameList.size() + " archivos a comprimir");
             
             FileOutputStream outputStream = new FileOutputStream(destinationPath);
@@ -297,9 +322,9 @@ public class Window extends javax.swing.JFrame {
             ZipOutputStream zip = new ZipOutputStream(new BufferedOutputStream(outputStream));
             byte[] data = new byte[BUFFER_SIZE];
             
-            int k = 0; // number of files zipped, used for the progress bar
             Iterator i = filenameList.iterator();
             try {
+                double totalCount = 0;
                 while (!isCancelled() && i.hasNext()) {
                     String filename = (String) i.next();
                     File file = new File(filename);
@@ -310,15 +335,20 @@ public class Window extends javax.swing.JFrame {
                     zip.putNextEntry(zipEntry);
 
                     int count;
+                    
                     while((count = bufferedInputStream.read(data, 0, BUFFER_SIZE)) != -1) {
                         zip.write(data, 0, count);
+                        totalCount += (double) count / (double) nBytes * PBAR_MAX;
+                        if(isCancelled()) {
+                            throw (new InterruptedException());
+                        }
+                        publish((int) totalCount);
                     }
                     bufferedInputStream.close();
-                    Thread.sleep(100);
-
-                    publish(++k);
-                    System.out.println(k);
-                } 
+                }
+                if(isCancelled()) {
+                    throw (new InterruptedException());
+                }
                 zip.close();
             } catch (InterruptedException ie) {
                 zip.close();
@@ -330,6 +360,7 @@ public class Window extends javax.swing.JFrame {
         
         @Override
         protected void done() {
+            progressBar.setValue(PBAR_MAX);
             cancelButton.setVisible(false);
             selectFolderButton.setEnabled(true);
             compressButton.setEnabled(true);
@@ -337,9 +368,13 @@ public class Window extends javax.swing.JFrame {
         
         @Override
         protected void process(List<Integer> chunks) {
-            progressBar.setValue(chunks.get(0));
+            if(!isCancelled()) {
+                System.out.println(chunks.get(0));
+                progressBar.setValue(chunks.get(0));
+            }
         }
         
+        //gets all regular file paths from a file hierarchy
         private void getFiles(List<String> fileList, String path) {
             File file = new File(path);
             if(file.isDirectory()) {
@@ -352,6 +387,16 @@ public class Window extends javax.swing.JFrame {
             } else {
                 fileList.add(file.getAbsolutePath());
             }
+        }
+        
+        //returns the size in bytes of the directory passed
+        private long getDirSize(String path) throws IOException {
+            Path folder = Paths.get(path);
+            return Files.walk(folder)           //Stream<Path>
+                    .map(p -> p.toFile())       //File class
+                    .filter(p -> p.isFile())    //regular files
+                    .mapToLong(p -> p.length())
+                    .sum();
         }
     }
 }
