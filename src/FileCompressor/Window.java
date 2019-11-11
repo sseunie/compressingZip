@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -31,6 +32,7 @@ import javax.swing.UIManager;
 public class Window extends javax.swing.JFrame {
     
     JFileChooser fileChooser;
+    ZipCompressor zipWorker;
 
     /**
      * Creates new form Window
@@ -99,6 +101,11 @@ public class Window extends javax.swing.JFrame {
         originPathTextField.setEditable(false);
 
         cancelButton.setText("Cancelar");
+        cancelButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                cancelButtonActionPerformed(evt);
+            }
+        });
 
         destinationPathTextField.setEditable(false);
 
@@ -162,9 +169,8 @@ public class Window extends javax.swing.JFrame {
         selectFolderButton.setEnabled(false);
         compressButton.setEnabled(false);
         
-        ZipCompressor zipWorker = new ZipCompressor(originPathTextField.getText(), destinationPathTextField.getText());
+        zipWorker = new ZipCompressor(originPathTextField.getText(), destinationPathTextField.getText());
         zipWorker.execute();
-        
     }//GEN-LAST:event_compressButtonActionPerformed
 
     private void selectFolderButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectFolderButtonActionPerformed
@@ -179,6 +185,10 @@ public class Window extends javax.swing.JFrame {
             destinationPathTextField.setText("");
         }
     }//GEN-LAST:event_selectFolderButtonActionPerformed
+
+    private void cancelButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cancelButtonActionPerformed
+        zipWorker.cancel(true);
+    }//GEN-LAST:event_cancelButtonActionPerformed
 
     
     /**
@@ -280,6 +290,7 @@ public class Window extends javax.swing.JFrame {
             getFiles(filenameList, originPath);
             
             progressBar.setMaximum(filenameList.size());
+            System.out.println(filenameList.size() + " archivos a comprimir");
             
             FileOutputStream outputStream = new FileOutputStream(destinationPath);
             
@@ -287,23 +298,33 @@ public class Window extends javax.swing.JFrame {
             byte[] data = new byte[BUFFER_SIZE];
             
             int k = 0; // number of files zipped, used for the progress bar
-            for(String filename : filenameList) {
-                File file = new File(filename);
-                FileInputStream inputStream = new FileInputStream(file);
-                BufferedInputStream bufferedInputStream = new BufferedInputStream(inputStream, BUFFER_SIZE);
-                
-                ZipEntry zipEntry = new ZipEntry(filename.substring(originPath.length()+1));
-                zip.putNextEntry(zipEntry);
-                
-                int count;
-                while((count = bufferedInputStream.read(data, 0, BUFFER_SIZE)) != -1) {
-                    zip.write(data, 0, count);
-                }
-                bufferedInputStream.close();
-                
-                publish(++k);
+            Iterator i = filenameList.iterator();
+            try {
+                while (!isCancelled() && i.hasNext()) {
+                    String filename = (String) i.next();
+                    File file = new File(filename);
+                    FileInputStream inputStream = new FileInputStream(file);
+                    BufferedInputStream bufferedInputStream = new BufferedInputStream(inputStream, BUFFER_SIZE);
+
+                    ZipEntry zipEntry = new ZipEntry(filename.substring(originPath.length()+1));
+                    zip.putNextEntry(zipEntry);
+
+                    int count;
+                    while((count = bufferedInputStream.read(data, 0, BUFFER_SIZE)) != -1) {
+                        zip.write(data, 0, count);
+                    }
+                    bufferedInputStream.close();
+                    Thread.sleep(100);
+
+                    publish(++k);
+                    System.out.println(k);
+                } 
+                zip.close();
+            } catch (InterruptedException ie) {
+                zip.close();
+                (new File(destinationPath)).delete();
+                progressBar.setValue(0);
             }
-            zip.close();
             return null;
         }
         
