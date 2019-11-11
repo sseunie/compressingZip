@@ -64,9 +64,7 @@ public class Window extends javax.swing.JFrame {
             public void windowClosing(WindowEvent we) {
                 confirmExit();
             }
-        });
-        
-        
+        }); 
     }
 
     /**
@@ -363,6 +361,7 @@ public class Window extends javax.swing.JFrame {
             selectFolderButton.setEnabled(true);
             compressButton.setEnabled(true);
             if (!isCancelled()) showMessage("¡Completado!");
+            else showMessage("Compresión interrumpida");
         }
         
         @Override
@@ -374,7 +373,7 @@ public class Window extends javax.swing.JFrame {
         private List<String> getFiles(String path) throws IOException {
             Path folder = Paths.get(path);
             return Files.walk(folder)               //Stream<Path>
-                    .map(p -> p.toFile())           //File class
+                    .map(p -> p.toFile())           //Stream<File>
                     .filter(f -> f.isFile())        //regular files
                     .map(f -> f.getAbsolutePath())
                     .collect(Collectors.toList());
@@ -384,7 +383,7 @@ public class Window extends javax.swing.JFrame {
         private long getDirSize(String path) throws IOException {
             Path folder = Paths.get(path);
             return Files.walk(folder)           //Stream<Path>
-                    .map(p -> p.toFile())       //File class
+                    .map(p -> p.toFile())       //Stream<File>
                     .filter(f -> f.isFile())    //regular files
                     .mapToLong(f -> f.length())
                     .sum();
