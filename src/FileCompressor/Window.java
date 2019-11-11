@@ -254,6 +254,7 @@ public class Window extends javax.swing.JFrame {
         fileChooser.setDialogTitle("Seleccionar dónde se guardará el zip");
         int res = fileChooser.showSaveDialog(this);
         if(res == JFileChooser.APPROVE_OPTION && 
+                fileChooser.getSelectedFile().isDirectory() &&
                 !(originPathTextField.getText().equals(fileChooser.getSelectedFile().getAbsolutePath()))) {
             destinationPathTextField.setText(fileChooser.getSelectedFile().getAbsolutePath());
         } else {
@@ -275,6 +276,10 @@ public class Window extends javax.swing.JFrame {
     
     private void showErrorDialog(Component parent, String message) {
         JOptionPane.showMessageDialog(parent, message, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+    
+    private void showMessage(String message) {
+        JOptionPane.showMessageDialog(this, message, "Aviso", JOptionPane.PLAIN_MESSAGE);
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
@@ -302,7 +307,7 @@ public class Window extends javax.swing.JFrame {
         
         public ZipCompressor(String originPath, String destinationPath) throws IOException {
             this.originPath = originPath;
-            this.destinationPath = destinationPath + "\\folder.zip";
+            this.destinationPath = destinationPath + File.separator + (new File(originPath)).getName() +".zip";
             nBytes = getDirSize(originPath);
         }
         
@@ -357,6 +362,7 @@ public class Window extends javax.swing.JFrame {
             cancelButton.setVisible(false);
             selectFolderButton.setEnabled(true);
             compressButton.setEnabled(true);
+            if (!isCancelled()) showMessage("¡Completado!");
         }
         
         @Override
